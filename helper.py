@@ -1,5 +1,5 @@
 import numpy as np
-from pandas import DataFrame, MultiIndex, concat
+from pandas import DataFrame, MultiIndex, concat, merge
 from math import sqrt
 from scipy.stats import t, pearsonr, spearmanr
 from sklearn.impute import SimpleImputer
@@ -7,6 +7,8 @@ from scipy.stats import shapiro, normaltest, ks_2samp, bartlett, fligner, levene
 from statsmodels.formula.api import ols
 import re
 from statsmodels.stats.outliers_influence import variance_inflation_factor
+from sklearn.preprocessing import StandardScaler
+from pca import pca
 #--------------------------------------------------
 # 모듈 불러오기
 # import sys
@@ -87,7 +89,7 @@ def replaceOutlier(df, fieldName):
 
 
 
-def setCategory(df, ignore=[]):
+def setCategory(df, fields=[]):
     """
     데이터 프레임에서 지정된 필드를 범주형으로 변경한다.
 
@@ -113,22 +115,18 @@ def setCategory(df, ignore=[]):
             # 변수명을 가져온다.
             field_name = ilist[i]
 
-            # 제외목록이 있고, 해당 변수명이 제외목록에 포함되어 있으면 다음 변수로 이동
-            if ignore and field_name in ignore:
+            # 대상 필드 목록이 설정되지 않거나(전체필드 대상), 현재 필드가 대상 필드목록에 포함되어 있지 않다면?
+            if not fields or field_name not in fields:
                 continue
 
             # 가져온 변수명에 대해 값의 종류별로 빈도를 카운트 한 후 인덱스 이름순으로 정렬
             vc = cdf[field_name].value_counts().sort_index()
-            #print(vc)
+            # print(vc)
 
             # 인덱스 이름순으로 정렬된 값의 종류별로 반복 처리
             for ii, vv in enumerate(list(vc.index)):
-                # 일련번호값 생성
-                vnum = ii + 1
-                #print(vv, " -->", vnum)
-
                 # 일련번호값으로 치환
-                cdf.loc[cdf[field_name] == vv, field_name] = vnum
+                cdf.loc[cdf[field_name] == vv, field_name] = ii
 
             # 해당 변수의 데이터 타입을 범주형으로 변환
             cdf[field_name] = cdf[field_name].astype('category')
@@ -625,3 +623,38 @@ def my_ols(data, y, x):
     ols_result.varstr = varstr
 
     return ols_result
+
+
+def scalling(df, yname):
+    """
+    데이터 프레임을 표준화 한다.
+
+    Parameters
+    -------
+    - df: 데이터 프레임
+    - yname: 종속변수 이름
+
+    Returns
+    -------
+    - x_train_std_df: 표준화된 독립변수 데이터 프레임
+    - y_train_std_df: 표준화된 종속변수 데이터 프레임
+    """
+    x_train = df.drop([yname], axis=1)
+    x_train_std = StandardScaler().fit_transform(x_train)
+    x_train_std_df = DataFrame(x_train_std, columns=x_train.columns)
+    
+    y_train = df.filter([yname])
+    y_train_std = StandardScaler().fit_transform(y_train)
+    y_train_std_df = DataFrame(y_train_std, columns=y_train.columns)
+
+    return (x_train_std_df, y_train_std_df)
+
+def get_best_features(x_train_std_df):
+    pca_model = pca()
+    fit = pca_model.fit_transform(x_train_std_df)
+    topfeat_df = fit['topfeat']
+
+    best = topfeat_df.query("type=='best'")
+    feature = list(set(list(best['feature'])))
+
+    return (feature, topfeat_df)
