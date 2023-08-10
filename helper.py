@@ -29,6 +29,8 @@ from tabulate import tabulate
 def prettyPrint(df, headers="keys", tablefmt="psql", numalign="right"):
     print(tabulate(df, headers=headers, tablefmt=tablefmt, numalign=numalign))
 
+
+# 결측치 정제(평균)
 def replaceMissingValue(df, strategy='mean'):
     """
     결측치 정제
@@ -46,7 +48,6 @@ def replaceMissingValue(df, strategy='mean'):
     df_imr = imr.fit_transform(df.values)
     re_df = DataFrame(df_imr, index=df.index, columns=df.columns)
     return re_df
-
 
 #--------------------------------------------------
 # 분산분석(일원분산분석 (One-way ANOVA)) 모듈
@@ -128,6 +129,7 @@ def equal_variance_test(*any):
 
     return df
 
+# 분산분석을 수행하기 위한 독립성 검정
 def independence_test(*any):
     """
     분산분석을 수행하기 위한 독립성을 검정한다.
@@ -156,6 +158,7 @@ def independence_test(*any):
 
     return df
 
+# 정규성, 등분산성, 독립성을 모두 검정
 def all_test(*any):
     """
     정규성, 등분산성, 독립성을 모두 검정한다.
@@ -168,7 +171,7 @@ def all_test(*any):
     """
     return concat([normality_test(*any), equal_variance_test(*any), independence_test(*any)])
 
-
+# IQR(Interquartile Range)를 이용한 이상치 경계값 계산
 def getIq(field, isPrint=True):
     """
     IQR(Interquartile Range)를 이용한 이상치 경계값 계산
@@ -198,8 +201,7 @@ def getIq(field, isPrint=True):
     else:
         return 극단치경계   # 시계열을 위해 추가 여기까지
 
-
-
+# 이상치를 판별하여 결측치로 치환
 def replaceOutlier(df, fieldName):
     """
     이상치를 판별하여 결측치로 치환
@@ -226,8 +228,7 @@ def replaceOutlier(df, fieldName):
 
     return cdf
 
-
-
+# 데이터 프레임에서 지정된 필드를 범주형으로 변경
 def setCategory(df, fields=[]):
     """
     데이터 프레임에서 지정된 필드를 범주형으로 변경한다.
@@ -272,8 +273,7 @@ def setCategory(df, fields=[]):
 
     return cdf
 
-
-
+# 불용어를 제거
 def clearStopwords(nouns, stopwords_file_path="wordcloud/stopwords-ko.txt"):
     """
     불용어를 제거한다.
@@ -300,7 +300,6 @@ def clearStopwords(nouns, stopwords_file_path="wordcloud/stopwords-ko.txt"):
             data_set.append(v)
 
     return data_set
-
 
 # 신뢰구간 생성(시계열을 위해 변경)
 def getConfidenceInterval(data, clevel=0.95, isPrint=True):
@@ -335,7 +334,6 @@ def getConfidenceInterval(data, clevel=0.95, isPrint=True):
         prettyPrint(df)
     else:
         return (cmin, cmax)
-
 
 #--------------------------------------------------
 # 분산분석(일원분산분석 (One-way ANOVA)) 모듈
@@ -441,6 +439,7 @@ def equalVarianceTest(*any, isPrint=True):
     else:
         return df
 
+# 분산분석을 수행하기 위한 독립성을 검정
 def independenceTest(*any, isPrint=True):
     """
     분산분석을 수행하기 위한 독립성을 검정한다.
@@ -479,6 +478,7 @@ def independenceTest(*any, isPrint=True):
     else:
         return df
 
+# 정규성, 등분산성, 독립성을 모두 검정
 def allTest(*any, isPrint=True):
     """
     정규성, 등분산성, 독립성을 모두 검정한다.
@@ -491,17 +491,17 @@ def allTest(*any, isPrint=True):
     -------
     - df: 검정 결과 데이터 프레임
     """
-    cc = concat([normalityTest(*any), equalVarianceTest(*any), independenceTest(*any)])
+    cc = concat([normalityTest(*any, isPrint=False), equalVarianceTest(*any, isPrint=False), independenceTest(*any, isPrint=False)])
 
     if isPrint:
         prettyPrint(cc)
     else:
         return cc
 
-
 #------------------------------
 # 피어슨 상관분석
 #------------------------------
+# 피어슨 상관계수를 사용하여 상관분석을 수행
 def pearson_r(df, isPrint=True):
     """
     피어슨 상관계수를 사용하여 상관분석을 수행한다.
@@ -538,9 +538,11 @@ def pearson_r(df, isPrint=True):
         prettyPrint(rdf)
     else:
         return rdf
+
 #------------------------------
 # 스피어만 상관분석
 #------------------------------
+# 스피어만 상관계수를 사용하여 상관분석을 수행
 def spearman_r(df, isPrint=True):
     """
     스피어만 상관계수를 사용하여 상관분석을 수행한다.
@@ -579,133 +581,7 @@ def spearman_r(df, isPrint=True):
         return rdf
 
 
-#------------------------------
-# 회귀분석 모듈
-#------------------------------
-# def ext_ols(data, y, x):
-#     """
-#     회귀분석을 수행한다.
-
-#     Parameters
-#     -------
-#     - data : 데이터 프레임
-#     - y: 종속변수 이름
-#     - x: 독립변수의 이름들(리스트)
-#     """
-
-#     # 독립변수의 이름이 리스트가 아니라면 리스트로 변환
-#     if type(x) != list:
-#         x = [x]
-
-#     # 종속변수~독립변수1+독립변수2+독립변수3+... 형태의 식을 생성
-#     expr = "%s~%s" % (y, "+".join(x))
-
-#     # 회귀모델 생성
-#     model = ols(expr, data=data)
-#     # 분석 수행
-#     fit = model.fit()
-
-#     # 파이썬 분석결과를 변수에 저장한다.
-#     summary = fit.summary()
-
-#     # 첫 번째, 세 번째 표의 내용을 딕셔너리로 분해
-#     my = {}
-
-#     for k in range(0, 3, 2):
-#         items = summary.tables[k].data
-#         # print(items)
-
-#         for item in items:
-#             # print(item)
-#             n = len(item)
-
-#             for i in range(0, n, 2):
-#                 key = item[i].strip()[:-1]
-#                 value = item[i+1].strip()
-
-#                 if key and value:
-#                     my[key] = value
-
-#     # 두 번째 표의 내용을 딕셔너리로 분해하여 my에 추가
-#     my['variables'] = []
-#     # 추가
-#     name_list = list(data.columns)
-#     print(name_list)
-
-#     for i, v in enumerate(summary.tables[1].data):
-#         if i == 0:
-#             continue
-
-#         # 변수의 이름
-#         name = v[0].strip()
-
-#         vif = 0
-
-#         # Intercept는 제외
-#         if name in name_list:
-#             # 변수의 이름 목록에서 현재 변수가 몇 번째 항목인지 찾기
-#             j = name_list.index(name)
-#             # data는 df 원본으로 변경
-#             vif = variance_inflation_factor(data, j)
-
-#         my['variables'].append({
-#             "name": name,
-#             "coef": v[1].strip(),
-#             "std err": v[2].strip(),
-#             "t": v[3].strip(),
-#             "P-value": v[4].strip(),
-#             "Beta": 0,
-#             "VIF": vif,
-#         })
-
-#     # 결과표를 데이터프레임으로 구성
-#     mylist = []
-#     yname_list = []
-#     xname_list = []
-
-#     for i in my['variables']:
-#         if i['name'] == 'Intercept':
-#             continue
-
-#         yname_list.append(y)
-#         xname_list.append(i['name'])
-
-#         item = {
-#             "B": i['coef'],
-#             "표준오차": i['std err'],
-#             "β": i['Beta'],
-#             "t": "%s*" % i['t'],
-#             "유의확률": i['P-value'],
-#             "VIF": i["VIF"]
-#         }
-
-#         mylist.append(item)
-
-#     table = DataFrame(mylist,
-#                    index=MultiIndex.from_arrays([yname_list, xname_list], names=['종속변수', '독립변수']))
-    
-#     # 분석결과
-#     result = "𝑅(%s), 𝑅^2(%s), 𝐹(%s), 유의확률(%s), Durbin-Watson(%s)" % (my['R-squared'], my['Adj. R-squared'], my['F-statistic'], my['Prob (F-statistic)'], my['Durbin-Watson'])
-
-#     # 모형 적합도 보고
-#     goodness = "%s에 대하여 %s로 예측하는 회귀분석을 실시한 결과, 이 회귀모형은 통계적으로 %s(F(%s,%s) = %s, p < 0.05)." % (y, ",".join(x), "유의하다" if float(my['Prob (F-statistic)']) < 0.05 else "유의하지 않다", my['Df Model'], my['Df Residuals'], my['F-statistic'])
-
-#     # 독립변수 보고
-#     varstr = []
-
-#     for i, v in enumerate(my['variables']):
-#         if i == 0:
-#             continue
-        
-#         s = "%s의 회귀계수는 %s(p%s0.05)로, %s에 대하여 %s."
-#         k = s % (v['name'], v['coef'], "<" if float(v['P-value']) < 0.05 else '>', y, '유의미한 예측변인인 것으로 나타났다' if float(v['P-value']) < 0.05 else '유의하지 않은 예측변인인 것으로 나타났다')
-
-#         varstr.append(k)
-
-#     # 리턴
-#     return (model, fit, summary, table, result, goodness, varstr)
-
-
+# 회귀분석 결과를 위한 class
 class OlsResult:
     def __init__(self):
         self._model = None
@@ -793,6 +669,7 @@ class OlsResult:
     def varstr(self, value):
         self._varstr = value
 
+# 회귀분석을 수행
 def myOls(data, y, x):
     """
     회귀분석을 수행한다.
@@ -922,8 +799,7 @@ def myOls(data, y, x):
 
     return ols_result
 
-
-
+# 데이터 프레임을 표준화-정규화(scaling)
 def scalling(df, yname=None):
     """
     데이터 프레임을 표준화 한다.
@@ -956,6 +832,12 @@ def scalling(df, yname=None):
 
     return result
 
+#------------------------------
+# 시계열데이터분석
+# 회귀분석에 필요한 요인 선정을 위해
+# 주성분 분석을 수행
+#------------------------------
+# 주성분 분석-PCA 분석
 def getBestFeatures(x_train_std_df):
     pca_model = pca()
     fit = pca_model.fit_transform(x_train_std_df)
@@ -966,6 +848,8 @@ def getBestFeatures(x_train_std_df):
     
     return (feature, topfeat_df)
 
+
+# 로지스틱 회귀분석 결과를 위한 class
 class LogitResult:
     def __init__(self):
         self._model = None    
@@ -1032,6 +916,7 @@ class LogitResult:
     def odds_rate_df(self, value):
         self._odds_rate_df = value
 
+# 로지스틱 회귀분석을 수행
 def myLogit(data, y, x, subset=None):
     """
     로지스틱 회귀분석을 수행한다.
@@ -1116,7 +1001,12 @@ def myLogit(data, y, x, subset=None):
     logit_result.odds_rate_df = odds_rate_df
 
     return logit_result
-    
+
+
+#------------------------------
+# 시계열데이터분석
+#------------------------------
+# 시계열 데이터 분석(차분을 수행해 최적의 결과를 유도)
 def expTimeData(data, yname, sd_model="m", max_diff=1):
     plt.rcParams["font.family"] = 'AppleGothic' if sys.platform == 'darwin' else 'Malgun Gothic'
     plt.rcParams["font.size"] = 12
@@ -1211,14 +1101,11 @@ def expTimeData(data, yname, sd_model="m", max_diff=1):
         if count == max_diff:
             break
 
+# 시계열 데이터 분석(차분을 수행해 최적의 결과를 유도)
 def exp_time_data(data, yname, sd_model="m", max_diff=1):
     expTimeData(data, yname, sd_model, max_diff)
 
-#------------------------------
-# 시계열데이터분석
 # 데이터 프레임의 인덱스를 datetime 형식으로 변환
-#------------------------------
-
 def set_datetime_index(df, field=None, inplace=False):
     """
         데이터 프레임의 인덱스를 datetime 형식으로 변환
