@@ -1,5 +1,5 @@
 import numpy as np
-from pandas import DataFrame, MultiIndex, concat, DatetimeIndex
+from pandas import DataFrame, MultiIndex, concat, DatetimeIndex, Series
 from math import sqrt
 from scipy.stats import t, pearsonr, spearmanr
 from sklearn.impute import SimpleImputer
@@ -25,12 +25,16 @@ from tabulate import tabulate
 # from helper import normality_test, equal_variance_test, independence_test, all_test
 #--------------------------------------------------
 
+
 # 시각화 폰트 - tabulate의 스타일을 지정해 변경할 수 있다(tablefmt="psql")
-def prettyPrint(df, headers="keys", tablefmt="psql", numalign="right"):
+def prettyPrint(df, headers="keys", tablefmt="psql", numalign="right", title="value"):
+    # print(tabulate(df, headers=headers, tablefmt=tablefmt, numalign=numalign))
+    if isinstance(df, Series):
+        df = DataFrame(df, columns=[title])
     print(tabulate(df, headers=headers, tablefmt=tablefmt, numalign=numalign))
 
 
-# 결측치 정제(평균)
+# 결측치 정제(평균 값)
 def replaceMissingValue(df, strategy='mean'):
     """
     결측치 정제
@@ -49,11 +53,8 @@ def replaceMissingValue(df, strategy='mean'):
     re_df = DataFrame(df_imr, index=df.index, columns=df.columns)
     return re_df
 
-#--------------------------------------------------
-# 분산분석(일원분산분석 (One-way ANOVA)) 모듈
-#--------------------------------------------------
 
-# 분산분석(일원분산분석 (One-way ANOVA)) 모듈2 -> 추가내용 : DataFrame 생성용
+# 분산분석을 수행하기 위한 정규성 검정
 def normality_test(*any):
     """
     분산분석을 수행하기 위한 정규성을 검정 한다.
@@ -98,7 +99,8 @@ def normality_test(*any):
 
     return DataFrame(result, index=MultiIndex.from_tuples(names, names=['condition', 'test', 'field']))
 
-# 분산분석(일원분산분석 (One-way ANOVA)) 모듈1
+
+# 분산분석을 수행하기 위한 등분산성 검정
 def equal_variance_test(*any):
     """
     분산분석을 수행하기 위한 등분산성을 검정 한다.
@@ -129,6 +131,7 @@ def equal_variance_test(*any):
 
     return df
 
+
 # 분산분석을 수행하기 위한 독립성 검정
 def independence_test(*any):
     """
@@ -158,6 +161,7 @@ def independence_test(*any):
 
     return df
 
+
 # 정규성, 등분산성, 독립성을 모두 검정
 def all_test(*any):
     """
@@ -170,6 +174,7 @@ def all_test(*any):
     - df: 검정 결과 데이터 프레임
     """
     return concat([normality_test(*any), equal_variance_test(*any), independence_test(*any)])
+
 
 # IQR(Interquartile Range)를 이용한 이상치 경계값 계산
 def getIq(field, isPrint=True):
@@ -201,6 +206,7 @@ def getIq(field, isPrint=True):
     else:
         return 극단치경계   # 시계열을 위해 추가 여기까지
 
+
 # 이상치를 판별하여 결측치로 치환
 def replaceOutlier(df, fieldName):
     """
@@ -228,8 +234,9 @@ def replaceOutlier(df, fieldName):
 
     return cdf
 
+
 # 데이터 프레임에서 지정된 필드를 범주형으로 변경
-def setCategory(df, fields=[]):
+def setCategory(df, fields=[], labelling=True):
     """
     데이터 프레임에서 지정된 필드를 범주형으로 변경한다.
 
@@ -260,18 +267,27 @@ def setCategory(df, fields=[]):
                 continue
 
             # 가져온 변수명에 대해 값의 종류별로 빈도를 카운트 한 후 인덱스 이름순으로 정렬
-            vc = cdf[field_name].value_counts().sort_index()
+            # vc = cdf[field_name].value_counts().sort_index()
             # print(vc)
 
             # 인덱스 이름순으로 정렬된 값의 종류별로 반복 처리
-            for ii, vv in enumerate(list(vc.index)):
-                # 일련번호값으로 치환
-                cdf.loc[cdf[field_name] == vv, field_name] = ii
+            # for ii, vv in enumerate(list(vc.index)):
+            #     # 일련번호값으로 치환
+            #     cdf.loc[cdf[field_name] == vv, field_name] = ii
 
             # 해당 변수의 데이터 타입을 범주형으로 변환
             cdf[field_name] = cdf[field_name].astype('category')
 
+            if labelling:
+                mydict = {}
+
+                for i, v in enumerate(cdf[field_name].dtypes.categories):
+                    mydict[v] = i
+                
+                cdf[field_name] = cdf[field_name].map(mydict).astype(int)
+
     return cdf
+
 
 # 불용어를 제거
 def clearStopwords(nouns, stopwords_file_path="wordcloud/stopwords-ko.txt"):
@@ -300,6 +316,7 @@ def clearStopwords(nouns, stopwords_file_path="wordcloud/stopwords-ko.txt"):
             data_set.append(v)
 
     return data_set
+
 
 # 신뢰구간 생성(시계열을 위해 변경)
 def getConfidenceInterval(data, clevel=0.95, isPrint=True):
@@ -335,12 +352,8 @@ def getConfidenceInterval(data, clevel=0.95, isPrint=True):
     else:
         return (cmin, cmax)
 
-#--------------------------------------------------
-# 분산분석(일원분산분석 (One-way ANOVA)) 모듈
-#--------------------------------------------------
 
-# 분산분석(일원분산분석 (One-way ANOVA)) 모듈2 -> 추가내용 : DataFrame 생성용
-# 시계열을 위해 변경
+# 분산분석을 수행하기 위한 정규성을 검정
 def normalityTest(*any, isPrint=True):
     """
     분산분석을 수행하기 위한 정규성을 검정 한다.
@@ -400,7 +413,8 @@ def normalityTest(*any, isPrint=True):
     else:
         return rdf
 
-# 분산분석(일원분산분석 (One-way ANOVA)) 모듈1
+
+# 분산분석을 수행하기 위한 등분산성을 검
 def equalVarianceTest(*any, isPrint=True):
     """
     분산분석을 수행하기 위한 등분산성을 검정 한다.
@@ -438,6 +452,7 @@ def equalVarianceTest(*any, isPrint=True):
         prettyPrint(df)
     else:
         return df
+
 
 # 분산분석을 수행하기 위한 독립성을 검정
 def independenceTest(*any, isPrint=True):
@@ -478,6 +493,7 @@ def independenceTest(*any, isPrint=True):
     else:
         return df
 
+
 # 정규성, 등분산성, 독립성을 모두 검정
 def allTest(*any, isPrint=True):
     """
@@ -497,6 +513,7 @@ def allTest(*any, isPrint=True):
         prettyPrint(cc)
     else:
         return cc
+
 
 #------------------------------
 # 피어슨 상관분석
@@ -538,7 +555,6 @@ def pearson_r(df, isPrint=True):
         prettyPrint(rdf)
     else:
         return rdf
-
 #------------------------------
 # 스피어만 상관분석
 #------------------------------
@@ -670,7 +686,7 @@ class OlsResult:
         self._varstr = value
 
 # 회귀분석을 수행
-def myOls(data, y, x):
+def myOls(data, y=None, x=None, expr=None):
     """
     회귀분석을 수행한다.
 
@@ -681,12 +697,28 @@ def myOls(data, y, x):
     - x: 독립변수의 이름들(리스트)
     """
 
-    # 독립변수의 이름이 리스트가 아니라면 리스트로 변환
-    if type(x) != list:
-        x = [x]
+    # DF 복사
+    df = data.copy()
 
     # 종속변수~독립변수1+독립변수2+독립변수3+... 형태의 식을 생성
-    expr = "%s~%s" % (y, "+".join(x))
+    if not expr:
+        # 독립변수의 이름이 리스트가 아니라면 리스트로 변환
+        if type(x) != list:
+            x = [x]
+        expr = "%s~%s" % (y, "+".join(x))
+    else:
+        x = []
+        p = expr.find('~')
+        y = expr[:p].strip()
+        x_tmp = expr[p+1:]
+        x_list = x_tmp.split('+')
+
+        for i in x_list:
+            k = i.strip()
+
+            if k:
+                x.append(k)
+
 
     # 회귀모델 생성
     model = ols(expr, data=data)
@@ -799,6 +831,7 @@ def myOls(data, y, x):
 
     return ols_result
 
+
 # 데이터 프레임을 표준화-정규화(scaling)
 def scalling(df, yname=None):
     """
@@ -831,6 +864,7 @@ def scalling(df, yname=None):
         result = x_train_std_df
 
     return result
+
 
 #------------------------------
 # 시계열데이터분석
@@ -1105,6 +1139,10 @@ def expTimeData(data, yname, sd_model="m", max_diff=1):
 def exp_time_data(data, yname, sd_model="m", max_diff=1):
     expTimeData(data, yname, sd_model, max_diff)
 
+
+#------------------------------
+# 시계열데이터분석
+#------------------------------
 # 데이터 프레임의 인덱스를 datetime 형식으로 변환
 def set_datetime_index(df, field=None, inplace=False):
     """
