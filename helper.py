@@ -8,6 +8,7 @@ from matplotlib import pyplot as plt
 
 from pandas import DataFrame, MultiIndex, concat, DatetimeIndex, Series
 
+from scipy import stats #확률 분포, 통계 분석, 신호 처리, 최적화, 선형 대수 등의 다양한 기능을 포함
 from scipy.stats import t, pearsonr, spearmanr
 from scipy.stats import shapiro, normaltest, ks_2samp, bartlett, fligner, levene, chi2_contingency
 
@@ -686,6 +687,13 @@ class RegMetric:
 # 회귀분석 결과를 위한 class
 class OlsResult:
     def __init__(self):
+        self._x_train = None    #머신러닝 회귀 갱신
+        self._y_train = None
+        self._train_pred = None
+        self._x_test = None
+        self._y_test = None
+        self._test_pred = None  #머신러닝 회귀 갱신
+
         self._model = None
         self._fit = None
         self._summary = None
@@ -697,6 +705,56 @@ class OlsResult:
         self._intercept = None  #절편
         self._trainRegMetric = None #학습
         self._testRegMetric = None  #테스트
+
+    #머신러닝 회귀 갱신
+    @property
+    def x_train(self):
+        return self._x_train
+
+    @x_train.setter
+    def x_train(self, value):
+        self._x_train = value
+
+    @property
+    def y_train(self):
+        return self._y_train
+
+    @y_train.setter
+    def y_train(self, value):
+        self._y_train = value
+
+    @property
+    def train_pred(self):
+        return self._train_pred
+
+    @train_pred.setter
+    def train_pred(self, value):
+        self._train_pred = value
+
+    @property
+    def x_test(self):
+        return self._x_test
+
+    @x_test.setter
+    def x_test(self, value):
+        self._x_test = value
+
+    @property
+    def y_test(self):
+        return self._y_test
+
+    @y_test.setter
+    def y_test(self, value):
+        self._y_test = value
+
+    @property
+    def test_pred(self):
+        return self._test_pred
+
+    @test_pred.setter
+    def test_pred(self, value):
+        self._test_pred = value
+    #머신러닝 회귀 갱신
 
     @property
     def model(self):
@@ -1418,20 +1476,21 @@ degree로 차수(1-단순선형회귀, 2-다항회귀)
 test_size로 데이터 분할(train/test)
 random_state로 학습 데이터 조합 설정 가능(데이터 분할 고정)
 '''
-def ml_ols(data, xnames, yname, degree=1, test_size=0.25, scalling=False, random_state=777):
+def ml_ols(data, xnames, yname, degree=1, test_size=0.25, use_scalling=False, random_state=777):
     # 표준화 설정이 되어 있다면 표준화 수행
     if scalling:
         data = scalling(data)
 
     # 독립변수 이름이 문자열로 전달되었다면 콤마 단위로 잘라서 리스트로 변환
+    # 띄어쓰기 금지 ex) xnames="길이,높이,두께" -> True / xnames="길이, 높이, 두께" -> False
     if type(xnames) == str:
         xnames = xnames.split(',')
 
     # 독립변수 추출
     x = data.filter(xnames)
 
-    # 종속변수 추출
-    y = data.filter([yname])
+    # 종속변수 추출 - 1차원 y = data.filter([yname])은 2차원 DF 형태
+    y = data[yname]
 
     # 2차식 이상으로 설종된 경우 차수에 맞게 변환
     if degree > 1:
@@ -1456,9 +1515,74 @@ def ml_ols(data, xnames, yname, degree=1, test_size=0.25, scalling=False, random
     result.coef = fit.coef_
     result.intercept = fit.intercept_
 
+    result.x_train = x_train.copy()
+    result.y_train = y_train.copy()
+    result.train_pred = result.fit.predict(result.x_train)
+
     if x_test is not None and y_test is not None:
-        result.setRegMetric(y_train, fit.predict(x_train), y_test, fit.predict(x_test))
+        result.x_test = x_test.copy()
+        result.y_test = y_test.copy()
+        result.test_pred = result.fit.predict(result.x_test)
+        result.setRegMetric(y_train, result.train_pred, y_test, result.test_pred)
     else:
-        result.setRegMetric(y_train, fit.predict(x_train))
+        result.setRegMetric(y_train, result.train_pred)
+
+    '''
+    F/02./07-지도학습(5)
+    ## #03. 결과보고에 필요한 값 구하기 참고
+    '''
+    # 절편과 계수를 하나의 배열로 결합
+    params = np.append(result.intercept, result.coef)
+
+    # 상수항 추가하기
+    designX = x.copy()
+    designX.insert(0, '상수', 1)
+
+    # 행렬곱 구하기
+    dot = np.dot(designX.T,designX)
+
+    # 행렬곱에 대한 역행렬
+    inv = np.linalg.inv(dot)
+
+    # 역행렬의 대각선 값 반환
+    dia = inv.diagonal()
+
+    # 평균 제곱오차 구하기
+    predictions = result.fit.predict(x) #1차원
+    MSE = (sum((y-predictions)**2)) / (len(designX)-len(designX.iloc[0]))
+
+    # 표준오차
+    se_b = np.sqrt(MSE * dia)
+
+    # t-value구하기
+    ts_b = params / se_b
+
+    # p-value 구하기 - 자유도를 위해 전체 행에서 1개 빼고 계산
+    p_values = [2*(1-stats.t.cdf(np.abs(i),(len(designX)-len(designX.iloc[0])))) for i in ts_b]
+
+    # VIF
+    vif = []
+
+    # 훈련 데이터에 대한 독립변수와 종속변수를 결합한 완전한 DF 준비
+    data = x_train.copy()
+    data[yname] = y_train
+    # print(data)
+    # print("-"*50)
+
+    for i, v in enumerate(x_train.columns):
+        j = list(data.columns).index(v)
+        vif.append(variance_inflation_factor(data, j))
+
+    # 결과표 구성하기
+    result.table = DataFrame({
+        "종속변수": [yname] * len(x_train.columns),
+        "독립변수": x_train.columns,
+        "B": result.coef,
+        "표준오차": se_b[1:],
+        "β": 0,
+        "t": ts_b[1:],
+        "유의확률": p_values[1:],
+        "VIF": vif,
+    })
 
     return result
