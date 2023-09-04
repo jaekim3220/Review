@@ -1528,9 +1528,9 @@ def ml_ols(data, xnames, yname, degree=1, test_size=0.25, use_scalling=False, ra
         result.setRegMetric(y_train, result.train_pred)
 
     '''
-    F/02./07-지도학습(5)
-    ## #03. 결과보고에 필요한 값 구하기 참고
-    '''
+    # F/02./07-지도학습(5)
+    # ## #03. 결과보고에 필요한 값 구하기 참고
+    
     # 절편과 계수를 하나의 배열로 결합
     params = np.append(result.intercept, result.coef)
 
@@ -1584,5 +1584,117 @@ def ml_ols(data, xnames, yname, degree=1, test_size=0.25, use_scalling=False, ra
         "유의확률": p_values[1:],
         "VIF": vif,
     })
+    '''
+    # 결과표 함수 호출
+    x_train[yname] = y_train
+    result.table = get_ols_table(x_train, xnames, yname, result.intercept, result.coef, result.train_pred)
 
     return result
+
+
+# 예측값을 위한 predict
+def get_ols_table(data, xnames, yname, intercept, coef, predict):
+    # 독립변수 이름이 문자열로 전달되면 콤마 단위로 잘라서 리스트로 변화
+    # # 띄어쓰기 금지 ex) xnames="길이,높이,두께" -> True / xnames="길이, 높이, 두께" -> False
+    if type(xnames) == str:
+        xnames = xnames.split(',')
+
+    # 독립변수 추출
+    x = data.filter(xnames)
+
+    # 종속변수 추출 - 1차원 y = data.filter([yname])은 2차원 DF 형태
+    y = data[yname]
+
+    # 절편과 계수를 하나의 배열로 결합
+    params = np.append(intercept, coef)
+
+    # 상수항 추가
+    designX = x.copy()
+    designX.insert(0, '상수', 1)
+
+    # 행렬곱 구하기
+    dot = np.dot(designX.T,designX)
+
+    # 행렬곱에 대한 역행렬
+    inv = np.linalg.inv(dot)
+
+    # 역행렬의 대각선 반환
+    dia = inv.diagonal()
+
+    # 평균 제곱오차
+    MSE = (sum((y-predict)**2)) / (len(designX)-len(designX.iloc[0]))
+
+    # 표준오차
+    se_b = np.sqrt(MSE * dia)
+
+    # t 값
+    ts_b = params / se_b
+
+    # p값
+    p_values = [2*(1-stats.t.cdf(np.abs(i),(len(designX)-len(designX.iloc[0])))) for i in ts_b]
+    
+    # VIF
+    vif = []
+
+    # 훈련데이터에 대한 독립/종속변수를 결합한 완전한 DF 준비
+    data = x.copy()
+    data[yname] = y
+    # print(data)
+    # print("-"*50)
+
+    # 다중 공선성 계산을 위한 VIF 생성 
+    for i, v in enumerate(x.columns):
+        j = list(data.columns).index(v) #행의 index 정보 추출
+        vif.append(variance_inflation_factor(data, j))  #VIF를 계산하고, vif 리스트에 추가
+
+    # 결과표 구성
+    table = DataFrame({
+        "종속변수": [yname] * len(x.columns),
+        "독립변수": x.columns,
+        "B": coef,
+        "표준오차": se_b[1:],
+        "β": 0,
+        "t": ts_b[1:],
+        "유의확률": p_values[1:],
+        "VIF": vif,
+    })
+
+    return table
+
+
+# 선형회귀 모델의 다항회귀 모델화 - sklearn의 PolynomialFeatures
+# 훈련/검증 데이터의 손실률, 절대오차 그래프 시각화
+def tf_result_plot(result, figsize=(15, 5), dpi=150):
+    # 학습 결과에 대한 DF 생성
+    result_df = DataFrame(result.history)
+    result_df['epochs'] = result_df.index+1
+    result_df.set_index('epochs', inplace=True)
+
+    # 학습 결과 그래프의 컬럼 명
+    column_names = result_df.columns
+
+    # 학습데이터에 대한 필드이름
+    train_column_name = [column_names[0], column_names[1]]
+
+    # 검증데이터에 대한 필드이름
+    test_column_name = [column_names[2], column_names[3]]
+
+    # 학습 결과 그래프
+
+    # # 그래프 객체 생성
+    fig, ax = plt.subplots(1,2, figsize=figsize, dpi=dpi)
+
+    # # 훈련 및 검증 데이터의 손실률, 절대오차 그래프 그리기
+    for i, v in enumerate(ax):
+        sb.lineplot(x=result_df.index, y=train_column_name[i], data=result_df, color='blue', label=train_column_name[i], ax=v)
+        sb.lineplot(x=result_df.index, y=test_column_name[i], data=result_df, color='orange', label=test_column_name[i], ax=v)
+        v.set_title(train_column_name[i])
+        v.set_xlabel('ephocs')
+        v.set_ylabel(train_column_name[i])
+        v.grid()
+        v.legend()
+        
+    plt.show()
+    plt.close()
+
+    return result_df
