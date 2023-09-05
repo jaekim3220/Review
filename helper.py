@@ -1177,7 +1177,7 @@ def myLogit(data, y, x, subset=None):
     # 혼동행렬
     cm = confusion_matrix(df[y], df['예측결과'])
     tn, fp, fn, tp = cm.ravel()
-    cmdf = DataFrame([[tn, tp], [fn, fp]], index=['True', 'False'], columns=['Negative', 'Positive'])
+    cmdf = DataFrame([[tn, fn], [fp, tp]], index=['True', 'False'], columns=['Negative', 'Positive'])
 
     # RAS
     ras = roc_auc_score(df[y], df['예측결과'])
@@ -1512,8 +1512,8 @@ def ml_ols(data, xnames, yname, degree=1, test_size=0.25, use_scalling=False, ra
     result = OlsResult()
     result.model = model
     result.fit = fit
-    result.coef = fit.coef_
-    result.intercept = fit.intercept_
+    result.coef = fit.coef_ #계수
+    result.intercept = fit.intercept_   #절편
 
     result.x_train = x_train.copy()
     result.y_train = y_train.copy()
@@ -1527,64 +1527,6 @@ def ml_ols(data, xnames, yname, degree=1, test_size=0.25, use_scalling=False, ra
     else:
         result.setRegMetric(y_train, result.train_pred)
 
-    '''
-    # F/02./07-지도학습(5)
-    # ## #03. 결과보고에 필요한 값 구하기 참고
-    
-    # 절편과 계수를 하나의 배열로 결합
-    params = np.append(result.intercept, result.coef)
-
-    # 상수항 추가하기
-    designX = x.copy()
-    designX.insert(0, '상수', 1)
-
-    # 행렬곱 구하기
-    dot = np.dot(designX.T,designX)
-
-    # 행렬곱에 대한 역행렬
-    inv = np.linalg.inv(dot)
-
-    # 역행렬의 대각선 값 반환
-    dia = inv.diagonal()
-
-    # 평균 제곱오차 구하기
-    predictions = result.fit.predict(x) #1차원
-    MSE = (sum((y-predictions)**2)) / (len(designX)-len(designX.iloc[0]))
-
-    # 표준오차
-    se_b = np.sqrt(MSE * dia)
-
-    # t-value구하기
-    ts_b = params / se_b
-
-    # p-value 구하기 - 자유도를 위해 전체 행에서 1개 빼고 계산
-    p_values = [2*(1-stats.t.cdf(np.abs(i),(len(designX)-len(designX.iloc[0])))) for i in ts_b]
-
-    # VIF
-    vif = []
-
-    # 훈련 데이터에 대한 독립변수와 종속변수를 결합한 완전한 DF 준비
-    data = x_train.copy()
-    data[yname] = y_train
-    # print(data)
-    # print("-"*50)
-
-    for i, v in enumerate(x_train.columns):
-        j = list(data.columns).index(v)
-        vif.append(variance_inflation_factor(data, j))
-
-    # 결과표 구성하기
-    result.table = DataFrame({
-        "종속변수": [yname] * len(x_train.columns),
-        "독립변수": x_train.columns,
-        "B": result.coef,
-        "표준오차": se_b[1:],
-        "β": 0,
-        "t": ts_b[1:],
-        "유의확률": p_values[1:],
-        "VIF": vif,
-    })
-    '''
     # 결과표 함수 호출
     x_train[yname] = y_train
     result.table = get_ols_table(x_train, xnames, yname, result.intercept, result.coef, result.train_pred)
@@ -1698,3 +1640,58 @@ def tf_result_plot(result, figsize=(15, 5), dpi=150):
     plt.close()
 
     return result_df
+
+
+# 로지스틱 회귀 결과 검정
+def tf_logit_result(model, fit, x, y):    
+    # 예측값 생성
+    pred_bool = model.predict(x).flatten() > 0.5
+    pred = pred_bool.astype(int)
+    
+    # 혼동행렬
+    cm = confusion_matrix(y, pred)
+    tn, fp, fn, tp = cm.ravel()
+    cmdf = DataFrame([[tn, fn], [fp, tp]], index=['True', 'False'], columns=['Negative', 'Positive'])
+
+    # RAS
+    ras = roc_auc_score(y, pred)
+
+    # 위양성율, 재현율, 임계값(사용안함)
+    fpr, tpr, thresholds = roc_curve(y, pred)
+
+    # 정확도
+    acc = accuracy_score(y, pred)
+
+    # 정밀도
+    pre = precision_score(y, pred)
+
+    # 재현율
+    recall = recall_score(y, pred)
+
+    # F1 score
+    f1 = f1_score(y, pred)
+
+    # 위양성율
+    fallout = fp / (fp + tn)
+
+    # 특이성
+    spe = 1 - fallout
+
+    result_df = DataFrame({'정확도(Accuracy)':[acc], '정밀도(Precision)':[pre], '재현율(Recall, TPR)':[recall], '위양성율(Fallout, FPR)': [fallout], '특이성(Specificity, TNR)':[spe], 'RAS': [ras], 'f1_score':[f1]})
+
+    # 모델 가중치와 편향 얻기
+    weights, bias = model.layers[1].get_weights()
+    
+    # 오즈비 계산
+    odds_ratio = np.exp(weights[0])
+
+    logit_result = LogitResult()
+    logit_result.model = model
+    logit_result.fit = fit
+    logit_result.summary = model.summary()
+    #logit_result.prs = prs
+    logit_result.cmdf = cmdf
+    logit_result.result_df = result_df
+    logit_result.odds_rate_df = odds_ratio
+    
+    return logit_result
